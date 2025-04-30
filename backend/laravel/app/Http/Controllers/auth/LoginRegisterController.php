@@ -13,40 +13,53 @@
             $validator = Validator::make($request->all(), [
                 'name' => 'required|string|max:255',
                 'apellidos' => 'required|string|max:255',
-                'email' => 'required|email|unique:users,email',
+                'email' => 'required|email|max:255',
                 'password' => 'required|string|min:8|confirmed',
             ]);
+        
+            $userExists = User::where('email', $request->email)->first();
+            if ($userExists) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "L'usuari ja existeix"
+                ], 409);
+            }
 
             if ($validator->fails()) {
                 return response()->json([
-                    'Error al registrar el usuario' => $validator->errors()
+                    'success' => false,
+                    'message' => 'Error en la validación',
+                    'errors' => $validator->errors()
                 ], 422);
             }
+        
 
+        
             $cliente = User::create([
                 'name' => $request->name,
                 'apellidos' => $request->apellidos,
                 'email' => $request->email,
                 'password' => Hash::make($request->password),
             ]);
-
-            // Generar URL de verificació
+        
+            // Generar URL de verificación
             $verificationUrl = route('verify.email', [
                 'id' => $cliente->id,
                 'hash' => sha1($cliente->email),
             ]);
-
-            // Enviar email amb l'URL de verificació
+        
+            // Enviar email con la URL de verificación
             Mail::send('emails.verify', ['verificationUrl' => $verificationUrl], function ($message) use ($cliente) {
                 $message->to($cliente->email)
                     ->subject('Verificació d\'email');
             });
-
+        
             return response()->json([
+                'success' => true,
                 'message' => 'Cliente creado exitosamente. Por favor, verifica tu correo electrónico.',
                 'user' => $cliente
             ], 201);
-        }
+        }        
 
         public function verifyEmail($id, $hash) {
             $cliente = User::findOrFail($id);
